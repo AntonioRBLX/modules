@@ -1,4 +1,6 @@
 -- MAKE THE ALGORITHM CHECK FOR BODY TYPES EG. SIZE, WIDTH, DEPTH OF A PLAYER
+cloneref = cloneref or function(...) return ... end
+local RS = cloneref(game:GetService("RunService"))
 local module = {}
 function module:Compute(startPosition,targetCharacter,projectileSpeed,projectileGravity,argumentTable)
 	local LocalPlayer
@@ -99,26 +101,12 @@ function module:Compute(startPosition,targetCharacter,projectileSpeed,projectile
 		end
 		return t1
 	end
-	local function checkTouchingParts(tab,ignoreDescendantsInstances)
-		local touchingParts = {}
-		local touchingTrussLadder = false
-		local function checkInsideIgnoreList(obj)
-			for _, v in ignoreDescendantsInstances do
-				if obj:IsDescendantOf(v) then
-					return true
-				end
-			end
-			return false
-		end
-		for _, v in tab do
-			if not table.find(ignoreDescendantsInstances,v) and v ~= floorHit and v ~= wallHit and v ~= ceilHit and not v:IsDescendantOf(targetCharacter) and (not LocalPlayer or not LocalPlayer.Character or not v:IsDescendantOf(LocalPlayer.Character)) and not checkInsideIgnoreList(v) and (not respectCanCollide or v.CanCollide) then
-				table.insert(touchingParts,v)
-				if v.ClassName == "TrussPart" then
-					touchingTrussLadder = true
-				end
+	local function checkTouchingTrussLadder(t)
+		for _, v in t do
+			if v.ClassName == "TrussPart" then
+				return true
 			end
 		end
-		return touchingParts, touchingTrussLadder
 	end
 	local function updateIndicatorPosition()
 		floorHit.Position = simulatedPos - Vector3.new(0,2,0)
@@ -224,6 +212,10 @@ function module:Compute(startPosition,targetCharacter,projectileSpeed,projectile
 		end
 	end
 	simulationIgnoreList = tableConcat(ignoreList,{targetCharacter})
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Blacklist
+	overlapParams.RespectCanCollide = respectCanCollide
+	overlapParams.FilterDescendantsInstances = simulationIgnoreList
 	--if LocalPlayer and LocalPlayer.Character then
 	--	table.insert(simulationIgnoreList,LocalPlayer.Character)
 	--end
@@ -256,8 +248,9 @@ function module:Compute(startPosition,targetCharacter,projectileSpeed,projectile
 				simulatedPos = Vector3.new(simulatedPos.X,checkCeilIntercept.Position.Y - 2,simulatedPos.Z)
 			end
 			updateIndicatorPosition()
-			local wallTouchingParts, touchingTrussLadder = checkTouchingParts(workspace:GetPartsInPart(wallHit),simulationIgnoreList)
+			local wallTouchingParts = workspace:GetPartsInPart(wallHit,overlapParams)
 			if #wallTouchingParts > 0 then
+				local touchingTrussLadder = checkTouchingTrussLadder(wallTouchingParts)
 				if touchingTrussLadder then
 					simulatedVel = Vector3.new(0,targetHum.WalkSpeed,0)
 				else
@@ -265,11 +258,11 @@ function module:Compute(startPosition,targetCharacter,projectileSpeed,projectile
 					if dir ~= dir then dir = Vector3.new(0,0,0) end
 					simulatedPos += Vector3.new(-dir.X,0,0)
 					updateIndicatorPosition()
-					local wallTouchingParts = checkTouchingParts(workspace:GetPartsInPart(wallHit),simulationIgnoreList)
+					local wallTouchingParts = workspace:GetPartsInPart(wallHit,overlapParams)
 					if #wallTouchingParts > 0 then
 						simulatedPos += Vector3.new(dir.X,0,-dir.Z)
 						updateIndicatorPosition()
-						local wallTouchingParts = checkTouchingParts(workspace:GetPartsInPart(wallHit),simulationIgnoreList)
+						local wallTouchingParts = workspace:GetPartsInPart(wallHit,overlapParams)
 						if #wallTouchingParts > 0 then
 							simulatedPos = prevSimulatedPos
 						end
@@ -277,8 +270,8 @@ function module:Compute(startPosition,targetCharacter,projectileSpeed,projectile
 				end
 			end
 			updateIndicatorPosition()
-			local floorTouchingParts, touchingTrussLadder = checkTouchingParts(workspace:GetPartsInPart(floorHit),simulationIgnoreList)
-			if not touchingTrussLadder and #floorTouchingParts > 0 and simulatedVel.Y <= interval then
+			local floorTouchingParts = workspace:GetPartsInPart(floorHit,overlapParams)
+			if simulatedVel.Y <= interval and #floorTouchingParts > 0 and not checkTouchingTrussLadder(floorTouchingParts) then
 				local highest
 				for _, v in floorTouchingParts do
 					if v.ClassName == "Part" and v.Shape == Enum.PartType.Block and checkOrientation(v) and simulatedPos.Y - 1 > v.Position.Y + v.Size.Y / 2 and (not highest or v.Position.Y + v.Size.Y / 2 > highest) then
@@ -302,8 +295,8 @@ function module:Compute(startPosition,targetCharacter,projectileSpeed,projectile
 				end
 			end
 			updateIndicatorPosition()
-			local ceilTouchingParts, touchingTrussLadder = checkTouchingParts(workspace:GetPartsInPart(ceilHit),simulationIgnoreList)
-			if not touchingTrussLadder and #ceilTouchingParts > 0 and simulatedVel.Y >= -interval then
+			local ceilTouchingParts = workspace:GetPartsInPart(ceilHit,overlapParams)
+			if simulatedVel.Y >= -interval and #ceilTouchingParts > 0 and not checkTouchingTrussLadder(floorTouchingParts) then
 				local lowest
 				for _, v in ceilTouchingParts do
 					if (v.ClassName == "Part" or v.ClassName == "SpawnLocation") and v.Shape == Enum.PartType.Block and checkOrientation(v) and simulatedPos.Y + 2 < v.Position.Y - v.Size.Y / 2 and (not lowest or v.Position.Y - v.Size.Y / 2 < lowest) then
@@ -334,7 +327,7 @@ function module:Compute(startPosition,targetCharacter,projectileSpeed,projectile
 	end)
 	coroutine.resume(computepathcoroutine)
 	while coroutine.status(computepathcoroutine) ~= "dead" do
-		task.wait()
+		RS.PreSimulation:Wait()
 		spawn = tick()
 		coroutine.resume(computepathcoroutine)
 	end

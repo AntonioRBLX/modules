@@ -1,4 +1,3 @@
--- MAKE THE ALGORITHM CHECK FOR BODY TYPES EG. SIZE, WIDTH, DEPTH OF A PLAYER
 cloneref = cloneref or function(...) return ... end
 local RS = cloneref(game:GetService("RunService"))
 local module = {}

@@ -1,3 +1,4 @@
+-- Algorithm by Madi (CITY512)
 cloneref = cloneref or function(...) return ... end
 local RS = cloneref(game:GetService("RunService"))
 local module = {}

@@ -1,4 +1,4 @@
--- Algorithm by CITY512
+-- Algorithm by CITY512 (Halide)
 cloneref = cloneref or function(...) return ... end
 local RS = cloneref(game:GetService("RunService"))
 local module = {}
